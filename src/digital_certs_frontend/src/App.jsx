@@ -3,7 +3,6 @@ import { digital_certs_backend } from "declarations/digital_certs_backend";
 
 function App() {
   const [emitData, setEmitData] = useState({
-    id: "",
     desarrollador: "",
     logro: "",
     fecha: "",
@@ -57,9 +56,6 @@ function App() {
       borderRadius: "4px",
       cursor: "pointer",
       transition: "background-color 0.3s",
-      ":hover": {
-        backgroundColor: "#0056b3",
-      },
     },
     response: {
       padding: "15px",
@@ -82,34 +78,45 @@ function App() {
     e.preventDefault();
     try {
       const result = await digital_certs_backend.emitirCertificado(
-        emitData.id,
         emitData.desarrollador,
         emitData.logro,
         emitData.fecha
       );
       setEmitResponse({ type: "success", message: result });
+      setEmitData({ desarrollador: "", logro: "", fecha: "" });
     } catch (err) {
       setEmitResponse({
         type: "error",
-        message: "Error: " + JSON.stringify(err),
+        message: "Error: " + err.message,
       });
     }
   };
 
   const handleActualizar = async (e) => {
     e.preventDefault();
+    const id = parseInt(updateData.id, 10);
+
+    if (isNaN(id) || id < 0 || id > 255) {
+      setActualizarResponse({
+        type: "error",
+        message: "ID inválido. Debe ser número entre 0 y 255",
+      });
+      return;
+    }
+
     try {
       const result = await digital_certs_backend.actualizarCertificado(
-        updateData.id,
+        id,
         updateData.desarrollador,
         updateData.logro,
         updateData.fecha
       );
       setActualizarResponse({ type: "success", message: result });
+      setUpdateData({ id: "", desarrollador: "", logro: "", fecha: "" });
     } catch (err) {
       setActualizarResponse({
         type: "error",
-        message: "Error: " + JSON.stringify(err),
+        message: "Error: " + err.message,
       });
     }
   };
@@ -118,7 +125,13 @@ function App() {
     e.preventDefault();
     try {
       const result = await digital_certs_backend.obtenerCertificado(getData.id);
-      setObtenerCert(result);
+      let cert;
+
+      if (result && result.length > 0) {
+        cert = result[0];
+      }
+
+      setObtenerCert(cert);
     } catch (err) {
       setObtenerCert(null);
     }
@@ -135,7 +148,7 @@ function App() {
     } catch (err) {
       setVerificarResponse({
         type: "error",
-        message: "Error: " + JSON.stringify(err),
+        message: "Error: " + err.message,
       });
     }
   };
@@ -150,15 +163,6 @@ function App() {
       <section style={styles.section}>
         <h2>📄 Emitir Certificado</h2>
         <form onSubmit={handleEmitir} style={styles.formGrid}>
-          <div>
-            <label>ID:</label>
-            <input
-              style={styles.input}
-              value={emitData.id}
-              onChange={(e) => setEmitData({ ...emitData, id: e.target.value })}
-              required
-            />
-          </div>
           <div>
             <label>Desarrollador:</label>
             <input
@@ -192,7 +196,10 @@ function App() {
               required
             />
           </div>
-          <button style={styles.button} type="submit">
+          <button
+            style={{ ...styles.button, gridColumn: "1 / -1" }}
+            type="submit"
+          >
             Generar Certificado
           </button>
         </form>
@@ -208,9 +215,12 @@ function App() {
         <h2>🔄 Actualizar Certificado</h2>
         <form onSubmit={handleActualizar} style={styles.formGrid}>
           <div>
-            <label>ID:</label>
+            <label>ID (0-255):</label>
             <input
               style={styles.input}
+              type="number"
+              min="0"
+              max="255"
               value={updateData.id}
               onChange={(e) =>
                 setUpdateData({ ...updateData, id: e.target.value })
@@ -251,7 +261,10 @@ function App() {
               required
             />
           </div>
-          <button style={styles.button} type="submit">
+          <button
+            style={{ ...styles.button, gridColumn: "1 / -1" }}
+            type="submit"
+          >
             Actualizar Certificado
           </button>
         </form>
@@ -266,12 +279,12 @@ function App() {
 
       {/* Sección Obtener */}
       <section style={styles.section}>
-        <h2>🔍 Obtener Certificado</h2>
+        <h2>🔍 Obtener Certificados</h2>
         <form onSubmit={handleObtener} style={{ display: "flex", gap: "10px" }}>
           <div style={{ flex: 1 }}>
             <input
               style={styles.input}
-              placeholder="Ingrese ID del certificado"
+              placeholder="Ingrese ID numérico del certificado"
               value={getData.id}
               onChange={(e) => setGetData({ ...getData, id: e.target.value })}
               required
@@ -281,7 +294,7 @@ function App() {
             Buscar
           </button>
         </form>
-        {obtenerCert && (
+        {obtenerCert ? (
           <div
             style={{
               marginTop: "20px",
@@ -307,6 +320,10 @@ function App() {
               <strong>Firma:</strong> <code>{obtenerCert.firma}</code>
             </p>
           </div>
+        ) : (
+          <div style={{ marginTop: "10px", color: "#666" }}>
+            {getData.id && "Certificado nao encontrado"}
+          </div>
         )}
       </section>
 
@@ -318,6 +335,7 @@ function App() {
             <label>ID:</label>
             <input
               style={styles.input}
+              placeholder="Número entre 0-255"
               value={verifyData.id}
               onChange={(e) =>
                 setVerifyData({ ...verifyData, id: e.target.value })
@@ -336,7 +354,10 @@ function App() {
               required
             />
           </div>
-          <button style={styles.button} type="submit">
+          <button
+            style={{ ...styles.button, gridColumn: "1 / -1" }}
+            type="submit"
+          >
             Verificar Autenticidad
           </button>
         </form>
