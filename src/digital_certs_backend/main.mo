@@ -4,6 +4,9 @@ import Text "mo:base/Text";
 import Principal "mo:base/Principal";
 import SHA256 "mo:sha2/Sha256";
 import Nat8 "mo:base/Nat8";
+import DateTime "mo:date-time";
+import Result "mo:base/Result";
+import Int "mo:base/Int";
 import Char "mo:base/Char";
 import Hash "mo:base/Hash";
 import Iter "mo:base/Iter";
@@ -11,11 +14,19 @@ import Nat32 "mo:base/Nat32";
 
 actor Certificacion {
     
+    let dateTime = DateTime.DateTime();
+
+    type Date = {
+        year: Int;
+        month: Int;
+        day: Int;
+    };
+    
     type Certificado = {
         id: Nat8;
         desarrollador: Text;
         logro: Text;
-        fecha: Text;
+        fecha: Date;
         emitidoPor: Principal;
         firma: Text;
     };
@@ -29,8 +40,7 @@ actor Certificacion {
     
     public shared ({caller}) func emitirCertificado(
         desarrollador: Text,
-        logro: Text,
-        fecha: Text
+        logro: Text
     ) : async Text {
         let newId = siguienteId();
         let firma = generarHash(Nat8.toText(newId), desarrollador, logro);
@@ -38,12 +48,35 @@ actor Certificacion {
             id = newId;
             desarrollador = desarrollador;
             logro = logro;
-            fecha = fecha;
+            fecha = await getCurrentDate();
             emitidoPor = caller;
             firma = firma;
         };
         certificados.put(newId, certificado);
         return "Certificado emitido con éxito: " # Nat8.toText(newId);
+    };
+
+
+    public func getCurrentDate() : async Date {
+        let dateResult = await dateTime.now();
+        
+        switch (dateResult) {
+            case (#Ok({ year; month; day; })) {
+                {
+                    year = Int.abs(year);
+                    month = Int.abs(month);
+                    day = Int.abs(day);
+                }
+            };
+            case (#err({ code; message })) {
+                Debug.print("Error: " # code # " - " # message);
+                { year = 2024; month = 1; day = 1 }
+            };
+            case (_) {
+                Debug.print("Estructura desconocida: " # debug_show(dateResult));
+                { year = 2024; month = 1; day = 1 }
+            };
+        }
     };
 
     func siguienteId() : Nat8 {
@@ -55,8 +88,7 @@ actor Certificacion {
     public shared ({caller}) func actualizarCertificado(
         id: Nat8,
         desarrollador: Text,
-        logro: Text,
-        fecha: Text
+        logro: Text
     ) : async Text {
         switch (certificados.get(id)) {
             case (?certificado) {
@@ -65,7 +97,7 @@ actor Certificacion {
                     id = id;
                     desarrollador = desarrollador;
                     logro = logro;
-                    fecha = fecha;
+                    fecha = await getCurrentDate();
                     emitidoPor = certificado.emitidoPor;
                     firma = nuevaFirma;
                 };
@@ -92,22 +124,17 @@ actor Certificacion {
         };
     };
 
-    public query func verificarCertificado(id: Text, firma: Text) : async Text {
-        switch (textToNat8(id)) {
-            case (?idNat8) {
-                switch (certificados.get(idNat8)) {
-                    case (?certificado) {
-                        if (certificado.firma == firma) {
-                            "Certificado válido: " # certificado.desarrollador # " - " # certificado.logro
-                        } else {
-                            "Firma inválida"
-                        }
-                    };
-                    case null { "Certificado no encontrado" };
-                }
-            };
-            case null { "ID inválido" };
-        }
+    public query func verificarCertificado(id: Nat8, firma: Text) : async Text {
+            switch (certificados.get(id)) {
+                case (?certificado) {
+                    if (certificado.firma == firma) {
+                        "Certificado válido: " # certificado.desarrollador # " - " # certificado.logro
+                    } else {
+                        "Firma inválida"
+                    }
+                };
+                case null { "Certificado no encontrado" };
+            }
     };
 
     func generarHash(id: Text, desarrollador: Text, logro: Text) : Text {
