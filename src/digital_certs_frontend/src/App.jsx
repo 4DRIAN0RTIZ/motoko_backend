@@ -1,9 +1,14 @@
 import React from "react";
 import { BrowserRouter as Router, Routes, Route, Link } from "react-router-dom";
+import html2canvas from "html2canvas";
+import { jsPDF } from "jspdf";
 import { digital_certs_backend } from "declarations/digital_certs_backend";
+import CertificadoBootcamp from "./Certificate";
+import { createRoot } from "react-dom";
 import "./index.scss";
 
 const App = () => {
+  // useState para almacenar los detalles del certificado
   return (
     <Router>
       <header className="navbar">
@@ -221,10 +226,45 @@ const VerificarCertificado = () => {
   const [id, setId] = React.useState("");
   const [firma, setFirma] = React.useState("");
   const [mensaje, setMensaje] = React.useState("");
+  const [certData, setCertData] = React.useState(null);
+  const certificateRef = React.useRef(null);
+
+  // Función para descargar el certificado como imagen PNG
+  const downloadAsPNG = async () => {
+    const tempDiv = document.createElement("div");
+    tempDiv.style.position = "absolute";
+    tempDiv.style.left = "-9999px";
+    tempDiv.style.padding = "20px";
+    tempDiv.style.backgroundColor = "white";
+    document.body.appendChild(tempDiv);
+
+    const root = createRoot(tempDiv);
+    root.render(
+      <CertificadoBootcamp
+        fecha={certData.fecha}
+        programa={certData.programa}
+        emisor={certData.emisor}
+        nombre={certData.nombre}
+      />
+    );
+
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    const canvas = await html2canvas(tempDiv);
+    const imgData = canvas.toDataURL("image/png");
+    const link = document.createElement("a");
+    link.download = "certificado.png";
+    link.href = imgData;
+    link.click();
+
+    root.unmount();
+    document.body.removeChild(tempDiv);
+  };
 
   const handleVerificar = async (e) => {
     e.preventDefault();
     const parsedId = parseInt(id, 10);
+    const textId = id;
 
     if (isNaN(parsedId)) {
       setMensaje("❌ ID debe ser un número");
@@ -237,8 +277,20 @@ const VerificarCertificado = () => {
         firma
       );
       setMensaje("✅ " + resultado);
+      // Obtener el certificado verificado mediante la función obtenerCertificado se pasa como texto
+      const certificado = await digital_certs_backend.obtenerCertificado(
+        textId
+      );
+      const certDetalles = {
+        fecha: `${certificado[0].fecha.day}/${certificado[0].fecha.month}/${certificado[0].fecha.year}`,
+        programa: certificado[0].logro,
+        emisor: `${certificado[0].emitidoPor}`,
+        nombre: certificado[0].desarrollador,
+      };
+      setCertData(certDetalles);
     } catch (error) {
       setMensaje("❌ Error al verificar: " + error.message);
+      setCertData(null);
     }
   };
 
@@ -262,6 +314,14 @@ const VerificarCertificado = () => {
         <button type="submit">Verificar</button>
       </form>
       {mensaje && <p>{mensaje}</p>}
+      {certData && (
+        <>
+          {/* Botones de descarga */}
+          <div style={{ marginTop: "10px" }}>
+            <button onClick={downloadAsPNG}>Descargar</button>
+          </div>
+        </>
+      )}
     </div>
   );
 };
